@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  S3-SNS Event-Driven Architecture
+  
+  Event-driven architecture that triggers Lambda function on S3 object upload
+  and sends email notifications via SNS
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Environment name (dev or prod)
+  
+  NotificationEmails:
+    Type: CommaDelimitedList
+    Default: "dickson.anyaele@amalitech.com,dicksonanyaele1234@gmail.com"
+    Description: Comma-separated list of email addresses to receive notifications
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: java17
+    Architectures:
+      - x86_64
+
+Resources:
+  EmailNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-notifications-${Environment}"
+      DisplayName: !Sub "File Upload Notifications - ${Environment}"
+
+  EmailSubscriptions:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt EmailSubscriptionFunction.Arn
+      TopicArn: !Ref EmailNotificationTopic
+      EmailList: !Ref NotificationEmails
+
+  EmailSubscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: EmailSubscriptionFunction
+      Handler: com.subscription.EmailSubscriptionHandler::handleRequest
+      Runtime: java17
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt EmailNotificationTopic.TopicName
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - sns:Subscribe
+                - sns:Unsubscribe
+                - sns:ListSubscriptionsByTopic
+              Resource: !Ref EmailNotificationTopic
+
+  S3EventProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: S3EventProcessor
+      Handler: com.event.S3EventProcessor::handleRequest
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref EmailNotificationTopic
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt EmailNotificationTopic.TopicName
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectVersion
+                - s3:HeadObject
+              Resource: !Sub "arn:aws:s3:::${AWS::StackName}-uploads-${Environment}-${AWS::AccountId}/*"
+
+  FileUploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-uploads-${Environment}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt S3EventProcessor.Arn
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref S3EventProcessor
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-uploads-${Environment}-${AWS::AccountId}"
+
+Outputs:
+  S3BucketName:
+    Description: "S3 Bucket for file uploads"
+    Value: !Ref FileUploadBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Bucket-${Environment}"
+
+  SNSTopicArn:
+    Description: "SNS Topic ARN for notifications"
+    Value: !Ref EmailNotificationTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-SNSTopic-${Environment}"
+
+  LambdaFunctionArn:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt S3EventProcessor.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-Lambda-${Environment}"
+
+  StackEnvironment:
+    Description: "Environment name"
+    Value: !Ref Environment

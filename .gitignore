@@ -1,0 +1,102 @@
+# ===============================================
+# Main Project .gitignore
+# ===============================================
+# Note: Each Maven module has its own .gitignore
+# - S3EventProcessor/.gitignore
+# - EmailSubscriptionFunction/.gitignore
+
+# SAM (Serverless Application Model)
+.aws-sam/
+samconfig.toml.bak
+
+# Maven (Global patterns - specific ones in module .gitignore files)
+target/
+*.mvn/
+.flattened-pom.xml
+
+# Java (Global patterns)
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+*.hprof
+
+# IDE (All IDEs)
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+.metadata/
+out/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# AWS Credentials and Keys
+*.pem
+*.key
+.aws/
+aws-exports.js
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary files
+*.tmp
+*.temp
+*~
+*.bak
+*.orig
+
+# Build artifacts
+build/
+dist/
+
+# Package managers (if used)
+node_modules/
+.npm
+.yarn-integrity
+
+# Testing
+coverage/
+*.lcov
+
+# Documentation
+*.pdf
+*.doc
+*.docx
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# JetBrains
+.idea/
+*.iws
+/out/

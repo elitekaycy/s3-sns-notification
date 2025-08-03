@@ -1,0 +1,41 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "s3-sns-notification"
+region = "eu-central-1"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "eu-central-1"
+parameter_overrides = "Environment=dev NotificationEmails=dickson.anyaele@amalitech.com,dicksonanyaele1234@gmail.com"
+
+[dev.global.parameters]
+stack_name = "s3-sns-notification-dev"
+region = "eu-central-1"
+
+[dev.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "eu-central-1"
+parameter_overrides = "Environment=dev NotificationEmails=dickson.anyaele@amalitech.com,dicksonanyaele1234@gmail.com"
+
+[prod.global.parameters]
+stack_name = "s3-sns-notification-prod"
+region = "eu-central-1"
+
+[prod.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+resolve_s3 = true
+region = "eu-central-1"
+parameter_overrides = "Environment=prod NotificationEmails=dickson.anyaele@amalitech.com"
