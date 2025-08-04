@@ -5,10 +5,16 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   AWS_REGION: eu-central-1
   ENVIRONMENT: dev
+  PIPELINE_EXECUTION_ROLE: arn:aws:iam::205930614431:role/GitHubActionsRole
+
+permissions:
+  id-token: write   
+  contents: read    
 
 jobs:
   build-and-deploy:
@@ -37,18 +43,23 @@ jobs:
           use-installer: true
           
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ env.ENVIRONMENT == 'prod' && secrets.PROD_AWS_ACCESS_KEY_ID || secrets.DEV_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.ENVIRONMENT == 'prod' && secrets.PROD_AWS_SECRET_ACCESS_KEY || secrets.DEV_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.PIPELINE_EXECUTION_ROLE }}
+          role-session-name: dev-deployment
+          role-duration-seconds: 3600
           
       - name: SAM build
         run: sam build
         
       - name: SAM deploy
         run: |
-          sam deploy --config-env ${{ env.ENVIRONMENT }} \
-            --parameter-overrides "Environment=${{ env.ENVIRONMENT }} NotificationEmails=${{ env.ENVIRONMENT == 'prod' && secrets.PROD_NOTIFICATION_EMAILS || secrets.DEV_NOTIFICATION_EMAILS }}" \
+          sam deploy \
+            --stack-name s3-sns-notification-${{ env.ENVIRONMENT }} \
+            --parameter-overrides "Environment=${{ env.ENVIRONMENT }} NotificationEmail=dickson.anyaele@amalitech.com" \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --region ${{ env.AWS_REGION }}
