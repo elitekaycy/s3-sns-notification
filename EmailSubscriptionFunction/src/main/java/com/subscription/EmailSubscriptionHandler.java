@@ -132,31 +132,37 @@ public class EmailSubscriptionHandler
       String jsonResponse = objectMapper.writeValueAsString(responseBody);
       context.getLogger().log("Sending response to CloudFormation: " + jsonResponse);
 
-      // Send HTTP PUT request to CloudFormation
       URL url = new URL(responseUrl);
       HttpURLConnection connection = (HttpURLConnection) url.openConnection();
       connection.setRequestMethod("PUT");
       connection.setRequestProperty("Content-Type", "application/json");
+      connection.setRequestProperty("Content-Length", String.valueOf(jsonResponse.getBytes(StandardCharsets.UTF_8).length));
+      connection.setConnectTimeout(30000); 
+      connection.setReadTimeout(30000);   
       connection.setDoOutput(true);
 
       try (OutputStream os = connection.getOutputStream()) {
         byte[] input = jsonResponse.getBytes(StandardCharsets.UTF_8);
         os.write(input, 0, input.length);
+        os.flush();
       }
 
       int responseCode = connection.getResponseCode();
       context.getLogger().log("CloudFormation response code: " + responseCode);
 
       if (responseCode < 200 || responseCode >= 300) {
-        context.getLogger().log("Failed to send response to CloudFormation");
+        context.getLogger().log("Failed to send response to CloudFormation. Response code: " + responseCode);
+        throw new RuntimeException("Failed to send response to CloudFormation. Response code: " + responseCode);
       } else {
         context.getLogger().log("Successfully sent response to CloudFormation");
       }
 
     } catch (IOException e) {
       context.getLogger().log("Error sending response to CloudFormation: " + e.getMessage());
+      throw new RuntimeException("Failed to send HTTP response to CloudFormation", e);
     } catch (Exception e) {
       context.getLogger().log("Error creating response: " + e.getMessage());
+      throw new RuntimeException("Failed to create CloudFormation response", e);
     }
   }
 
