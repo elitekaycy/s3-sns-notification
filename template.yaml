@@ -15,10 +15,10 @@ Parameters:
       - prod
     Description: Environment name (dev or prod)
   
-  NotificationEmails:
-    Type: CommaDelimitedList
-    Default: "dickson.anyaele@amalitech.com,dicksonanyaele1234@gmail.com"
-    Description: Comma-separated list of email addresses to receive notifications
+  NotificationEmail:
+    Type: String
+    Default: "dickson.anyaele@amalitech.com"
+    Description: Email address to receive notifications
 
 Globals:
   Function:
@@ -35,32 +35,12 @@ Resources:
       TopicName: !Sub "${AWS::StackName}-notifications-${Environment}"
       DisplayName: !Sub "File Upload Notifications - ${Environment}"
 
-  EmailSubscriptions:
-    Type: AWS::CloudFormation::CustomResource
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
     Properties:
-      ServiceToken: !GetAtt EmailSubscriptionFunction.Arn
+      Protocol: email
       TopicArn: !Ref EmailNotificationTopic
-      EmailList: !Ref NotificationEmails
-
-  EmailSubscriptionFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: EmailSubscriptionFunction
-      Handler: com.subscription.EmailSubscriptionHandler::handleRequest
-      Runtime: java17
-      Timeout: 60
-      MemorySize: 512
-      Policies:
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt EmailNotificationTopic.TopicName
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action:
-                - sns:Subscribe
-                - sns:Unsubscribe
-                - sns:ListSubscriptionsByTopic
-              Resource: !Ref EmailNotificationTopic
+      Endpoint: !Ref NotificationEmail
 
   S3EventProcessor:
     Type: AWS::Serverless::Function
