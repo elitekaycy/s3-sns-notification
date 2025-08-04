@@ -120,6 +120,8 @@ public class EmailSubscriptionHandler
       String reason,
       Context context) {
     try {
+      context.getLogger().log("Attempting to send response to CloudFormation URL: " + responseUrl);
+
       Map<String, Object> responseBody = new HashMap<>();
       responseBody.put("Status", status);
       responseBody.put("Reason", reason);
@@ -130,39 +132,92 @@ public class EmailSubscriptionHandler
       responseBody.put("Data", new HashMap<>());
 
       String jsonResponse = objectMapper.writeValueAsString(responseBody);
-      context.getLogger().log("Sending response to CloudFormation: " + jsonResponse);
+      context.getLogger().log("Response payload: " + jsonResponse);
+
+      byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+      context.getLogger().log("Response size: " + responseBytes.length + " bytes");
 
       URL url = new URL(responseUrl);
+      context
+          .getLogger()
+          .log(
+              "Parsed URL - Protocol: "
+                  + url.getProtocol()
+                  + ", Host: "
+                  + url.getHost()
+                  + ", Port: "
+                  + url.getPort());
+
       HttpURLConnection connection = (HttpURLConnection) url.openConnection();
       connection.setRequestMethod("PUT");
       connection.setRequestProperty("Content-Type", "application/json");
-      connection.setRequestProperty("Content-Length", String.valueOf(jsonResponse.getBytes(StandardCharsets.UTF_8).length));
-      connection.setConnectTimeout(30000); 
-      connection.setReadTimeout(30000);   
+      connection.setRequestProperty("Content-Length", String.valueOf(responseBytes.length));
+      connection.setRequestProperty("User-Agent", "AWS Lambda Java");
+      connection.setConnectTimeout(60000);
+      connection.setReadTimeout(60000);
       connection.setDoOutput(true);
+      connection.setInstanceFollowRedirects(false);
+
+      context.getLogger().log("Connection configured, attempting to connect...");
 
       try (OutputStream os = connection.getOutputStream()) {
-        byte[] input = jsonResponse.getBytes(StandardCharsets.UTF_8);
-        os.write(input, 0, input.length);
+        os.write(responseBytes);
         os.flush();
+        context.getLogger().log("Request body written successfully");
       }
 
       int responseCode = connection.getResponseCode();
-      context.getLogger().log("CloudFormation response code: " + responseCode);
+      String responseMessage = connection.getResponseMessage();
+      context
+          .getLogger()
+          .log("HTTP Response - Code: " + responseCode + ", Message: " + responseMessage);
+
+      try {
+        java.io.InputStream responseStream =
+            (responseCode >= 200 && responseCode < 300)
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+
+        if (responseStream != null) {
+          String responseBody2 = new String(responseStream.readAllBytes(), StandardCharsets.UTF_8);
+          context.getLogger().log("Response body: " + responseBody2);
+        }
+      } catch (Exception e) {
+        context.getLogger().log("Could not read response body: " + e.getMessage());
+      }
 
       if (responseCode < 200 || responseCode >= 300) {
-        context.getLogger().log("Failed to send response to CloudFormation. Response code: " + responseCode);
-        throw new RuntimeException("Failed to send response to CloudFormation. Response code: " + responseCode);
+        String errorMsg =
+            "CloudFormation HTTP error - Code: " + responseCode + ", Message: " + responseMessage;
+        context.getLogger().log(errorMsg);
+        throw new RuntimeException(errorMsg);
       } else {
         context.getLogger().log("Successfully sent response to CloudFormation");
       }
 
+    } catch (java.net.UnknownHostException e) {
+      String errorMsg = "DNS resolution failed for CloudFormation URL: " + e.getMessage();
+      context.getLogger().log(errorMsg);
+      throw new RuntimeException(errorMsg, e);
+    } catch (java.net.ConnectException e) {
+      String errorMsg = "Connection failed to CloudFormation URL: " + e.getMessage();
+      context.getLogger().log(errorMsg);
+      throw new RuntimeException(errorMsg, e);
+    } catch (java.net.SocketTimeoutException e) {
+      String errorMsg = "Timeout connecting to CloudFormation URL: " + e.getMessage();
+      context.getLogger().log(errorMsg);
+      throw new RuntimeException(errorMsg, e);
     } catch (IOException e) {
-      context.getLogger().log("Error sending response to CloudFormation: " + e.getMessage());
-      throw new RuntimeException("Failed to send HTTP response to CloudFormation", e);
+      String errorMsg = "IO error sending response to CloudFormation: " + e.getMessage();
+      context.getLogger().log(errorMsg);
+      e.printStackTrace();
+      throw new RuntimeException(errorMsg, e);
     } catch (Exception e) {
-      context.getLogger().log("Error creating response: " + e.getMessage());
-      throw new RuntimeException("Failed to create CloudFormation response", e);
+      String errorMsg =
+          "Unexpected error creating/sending CloudFormation response: " + e.getMessage();
+      context.getLogger().log(errorMsg);
+      e.printStackTrace();
+      throw new RuntimeException(errorMsg, e);
     }
   }
 
@@ -173,4 +228,3 @@ public class EmailSubscriptionHandler
     return response;
   }
 }
-
